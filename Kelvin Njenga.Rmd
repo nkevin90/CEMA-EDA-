@@ -1,0 +1,226 @@
+---
+title: "CEMA INTERNSHIP"
+author: "Kelvin Njenga"
+date: "2023-07-19"
+output: html_document
+---
+
+# 1.Business understanding
+
+CEMA (Center for Epidemiological Modelling and Analysis) has provided us with a comprehensive dataset containing monthly data for children under 5 years in Kenya, detailed at a county level. The dataset covers the period from January 2021 to June 2023 and encompasses vital health indicators for children.The dataset includes information on the total number of children dewormed, the prevalence of acute malnutrition, the number of stunted children in different age groups, the cases of diarrhea among children, and the prevalence of underweight children in various age categories.
+
+## Objectives
+
+The primary objective of this analysis is to conduct EDA to identify trends, patterns, and potential areas for targeted interventions to improve child health and well-being. State an appropriate research question to answer from the data.
+
+## Research Question
+
+What is the temporal trend of deworming efforts in reducing the occurrence of diarrhea cases for children below 5 years over time?
+
+# 2. Data Understanding
+
+The dataset contains the following Features/Columns:
+
+| Column                   | Description                                          |
+|--------------------------|----------------------------------------------|
+| period                   | The period (months from January 2021 to June 2023)   |
+| county                   | The name of the county in Kenya                      |
+| Total Dewormed           | Total number of children dewormed                    |
+| Acute Malnutrition       | Number of children \<5 years with acute malnutrition |
+| stunted 6-23 months      | Number of children stunted (6-23 months)             |
+| stunted 0-\<6 months     | Number of children stunted (0-6 months)              |
+| stunted 24-59 months     | Number of children stunted (24-59 months)            |
+| diarrhea cases           | Number of children \<5 years with diarrhea           |
+| Underweight 0-\<6 months | Number of children underweight (0-6 months)          |
+| Underweight 6-23 months  | Number of children underweight (6-23 months)         |
+| Underweight 24-59 Months | Number of children underweight (24-59 months)        |
+
+# 3.Data Preprocessing
+
+## Importing the required libraries
+
+```{r, message=FALSE, warning=FALSE}
+# Importing required libraries
+
+library(tidyverse) # for data manipulation and visualization
+library(lubridate) # for dates
+library(dplyr) # for data manipulation and summarization
+library(ggplot2) # for creating data visualizations
+library(rgdal) # for geospatial data formats
+library(sf) # for spatial data
+library(foreign) # for reading and writing data files in various formats(.dbf etc)
+library(leaflet) # for interactive mapping visualizations
+library(plotly)
+library(corrplot) # for correlation plots
+library(knitr) # for dynamic reports
+library(RColorBrewer) # for color palletes
+
+```
+
+## Loading the Excel file
+
+```{r, message=FALSE}
+data <- read_csv("data/cema_internship_task_2023.csv")
+# Viewing the top 5 dataset values
+head(data)
+```
+
+### Checking for Missing values
+
+```{r}
+# Checking for missing values and other descriptive statistics
+summary(data)
+```
+
+```{r}
+# Checking the percentage of missing values(NA)
+calculate_missing_percentage <- function(data) {
+  missing_percentage <- colMeans(is.na(data)) * 100
+  return(missing_percentage)
+}
+missing_percentages <- calculate_missing_percentage(data)
+print(missing_percentages)
+```
+
+### Dealing With missing values
+
+```{r}
+# Replacing all NA's with 0
+data <- data %>%
+  mutate(across(everything(), ~ifelse(is.na(.), 0, .)))
+
+# checking if the NA's have been replaced with 0
+missing_percentages <- calculate_missing_percentage(data)
+print(missing_percentages)
+```
+
+```{r}
+# removing county from county name entries
+data$county <- gsub(" County", "", data$county)
+
+# Convert the period date to a 28 day full date format
+data$full_date <- dmy(paste0("28-", data$period))
+
+# Display the updated data with the new "full_date" column
+view(data)
+```
+
+# 4. External dataset validation
+
+Diarrhoea is the second leading cause of death among children \< 5 years of age. It accounts for one out of twenty seven child fatalities globally, with 80% of these occurring in low-middle-income countries. In Kenya, diarrhoea is responsible for 17% of all childhood diseases, with children \< 5 years experiencing, on average, three incidences of diarrhoea annually.From the graph plotted below, it is noted that during the months of January to March 2021 to 2023, there is an increase in diarrhoea cases in the aggregated 47 counties. This could be attributed to various factors such as the dry season in Kenya during this period.
+
+In the report [Extreme Weather Events in Kenya Between 2011 and 2020](https://meteo.go.ke/sites/default/files/downloads/Extreme%20Climate%20Events_Kenya%202011_to_2020.pdf) by the Kenya Meteorological Department, it is noted that the drought season exacerbated by La Nina conditions is experienced in the Country. Due to the decrease in rainfall, a water shortage is experienced in the country. This leads to prioritization of water usage for more crucial activities such as storing the little remaining water for drinking to sustain life. Additionally, this prompts households to also make use of any water that they may come across, whether clean or not.
+
+In [Onyango, I. (2022). Determinants of Diarrheal Cases among Children under five Years in Households using Domestic Water in Kangemi, Nairobi County, Kenya](http://ir.jooust.ac.ke:8080/xmlui/handle/123456789/12138), the author attributes some of the determinants of the increase in diarrhea cases to inadequate sanitation and hygiene as well as tainted drinking water.
+
+```{r}
+line_data <- data %>%
+  group_by(period) %>%
+  summarise(
+    total_dewormed = sum(`Total Dewormed`, na.rm = TRUE),
+    diarrhea_cases = sum(`diarrhoea cases`, na.rm = TRUE)) %>%
+  mutate(period = str_c(period, "-01")) %>%
+  separate(period, into = c("month", "year", "day"), sep = "-", remove = FALSE) %>% 
+  mutate(month_number = as.character(match(month, month.abb)),
+         year = str_replace(year, "^", "20")) %>% 
+  mutate(date = make_date(year, month_number, day)) %>% 
+  select(date, total_dewormed, diarrhea_cases) %>% 
+  arrange(date)
+line_data %>% head()
+```
+
+```{r}
+ggplot(line_data, aes(x = date)) +
+  geom_line(aes(y = diarrhea_cases, color = "Diarrhea Cases"), linewidth = 1.5 ,color="red") +
+  labs(title = "Diarrhea Cases Over Time",
+       x = "Date",
+       y = "Count") +
+  scale_x_date(date_labels = "%b-%y", date_breaks = "1 month") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+```{r}
+ggplot(line_data, aes(x = date)) +
+  geom_line(aes(y = total_dewormed), linewidth = 1.5, show.legend = FALSE, color="blue") +
+  labs(title = "Total Dewormed Over Time",
+       x = "Date",
+       y = "Count") +
+  scale_x_date(date_labels = "%b-%y", date_breaks = "1 month") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+# 5. Exploratory Data Analysis(EDA)
+
+## A.Univariate Analysis
+
+## B.Bivariate Analysis
+
+### How are these health indicators correlated with each other, and which variables show significant associations?
+
+```{r}
+# Correlation matrix
+correlation_matrix <- cor(data[, c("Total Dewormed", "Acute Malnutrition", "stunted 6-23 months", "stunted 0-<6 months", "stunted 24-59 months", "diarrhoea cases", "Underweight 0-<6 months", "Underweight 6-23 months", "Underweight 24-59 Months")], use = "pairwise.complete.obs")
+
+# Create the correlation plot with upper and left labels switched
+corrplot(correlation_matrix, method = "color", tl.col = "black", tl.srt = 45, tl.pos = "lt")
+```
+
+```{r}
+# Report summary for the Correlation plot
+correlation_table <- round(correlation_matrix, 2)
+# Print the table
+kable(correlation_table, format = "html", caption = "Correlation Matrix")
+```
+
+## C. Mutivariate Analysis
+
+### Working with Geospatial Data
+
+```{r}
+# Reading the .dbf file
+dbf_data <- read.dbf("shapefiles/County.dbf")
+
+# View the data
+head(dbf_data)
+```
+
+```{r}
+# Reading the .shp file
+shp <- st_read("shapefiles/County.shp")
+
+# View the data
+head(shp,2)
+```
+
+```{r}
+merged_data <- left_join(shp, data, by = c("Name" = "county"))
+view(merged_data)
+```
+
+```{r}
+
+# Function to create a choropleth map for any of the health indicators
+create_choropleth_map <- function(data, variable_name) {
+  ggplot() +
+    geom_sf(data = data, aes(fill = !!sym(variable_name), geometry = geometry)) +
+    scale_fill_distiller(palette = "RdYlBu", direction = 1) + 
+    facet_wrap(~year(full_date), ncol = 3) +
+    labs(title = paste("Distribution of", variable_name, "across Different Years"),
+         fill = variable_name) +
+    theme(legend.position = "bottom",
+          legend.key.width = unit(2.5, "cm"),   
+          legend.text = element_text(angle = 45, hjust = 1))  
+}
+
+# create map for "Total Dewormed"
+create_choropleth_map(merged_data, "Total Dewormed")
+```
+
+```{r}
+create_choropleth_map(merged_data, "Acute Malnutrition")
+```
+```{r}
+create_choropleth_map(merged_data, "diarrhoea cases")
+```
