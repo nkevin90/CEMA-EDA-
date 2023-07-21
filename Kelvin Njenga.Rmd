@@ -65,6 +65,8 @@ data <- read_csv("data/cema_internship_task_2023.csv")
 head(data)
 ```
 
+## Dealing with Missing values and Duplicates
+
 ### Checking for Missing values
 
 ```{r}
@@ -94,6 +96,17 @@ missing_percentages <- calculate_missing_percentage(data)
 print(missing_percentages)
 ```
 
+### Checking for duplicates
+
+```{r}
+duplicates <- any(duplicated(data))
+print(duplicates)
+shape <- dim(data)
+print(paste("The shape of our dataset contains", shape[1], "rows and", shape[2], "columns."))
+```
+
+### Renaming and converting our dataset columns to a 28 day calender(To include fulldates and February)
+
 ```{r}
 # removing county from county name entries
 data$county <- gsub(" County", "", data$county)
@@ -105,6 +118,27 @@ data$full_date <- dmy(paste0("28-", data$period))
 view(data)
 ```
 
+## Checking for Outliers
+
+```{r}
+plot_boxplots <- function(data) {
+  # Filter only the numerical columns
+  numerical_data <- data %>% select_if(is.numeric)
+
+  # Reshape the data for plotting
+  numerical_data_long <- numerical_data %>%
+    pivot_longer(everything(), names_to = "variable", values_to = "value")
+
+  # Plot boxplots
+  ggplot(numerical_data_long, aes(x = variable, y = value)) +
+    geom_boxplot() +
+    facet_wrap(~ variable, scales = "free") +
+    labs(title = "Boxplots of Numerical Columns",
+         x = "Variables", y = "Values")
+}
+plot_boxplots(data)
+```
+
 # 4. External dataset validation
 
 Diarrhoea is the second leading cause of death among children \< 5 years of age. It accounts for one out of twenty seven child fatalities globally, with 80% of these occurring in low-middle-income countries. In Kenya, diarrhoea is responsible for 17% of all childhood diseases, with children \< 5 years experiencing, on average, three incidences of diarrhoea annually.From the graph plotted below, it is noted that during the months of January to March 2021 to 2023, there is an increase in diarrhoea cases in the aggregated 47 counties. This could be attributed to various factors such as the dry season in Kenya during this period.
@@ -113,51 +147,85 @@ In the report [Extreme Weather Events in Kenya Between 2011 and 2020](https://me
 
 In [Onyango, I. (2022). Determinants of Diarrheal Cases among Children under five Years in Households using Domestic Water in Kangemi, Nairobi County, Kenya](http://ir.jooust.ac.ke:8080/xmlui/handle/123456789/12138), the author attributes some of the determinants of the increase in diarrhea cases to inadequate sanitation and hygiene as well as tainted drinking water.
 
+### Summarizing our dataset: Whole Kenya Overview
+
 ```{r}
 line_data <- data %>%
   group_by(period) %>%
   summarise(
     total_dewormed = sum(`Total Dewormed`, na.rm = TRUE),
-    diarrhea_cases = sum(`diarrhoea cases`, na.rm = TRUE)) %>%
+    diarrhea_cases = sum(`diarrhoea cases`, na.rm = TRUE),
+    acute_malnutrition = sum(`Acute Malnutrition`, na.rm = TRUE),
+    stunted_6_23_months = sum(`stunted 6-23 months`, na.rm = TRUE),
+    stunted_0_6_months = sum(`stunted 0-<6 months`, na.rm = TRUE),
+    stunted_24_59_months = sum(`stunted 24-59 months`, na.rm = TRUE),
+    underweight_0_6_months = sum(`Underweight 0-<6 months`, na.rm = TRUE),
+    underweight_6_23_months = sum(`Underweight 6-23 months`, na.rm = TRUE),
+    underweight_24_59_months = sum(`Underweight 24-59 Months`, na.rm = TRUE)
+  ) %>%
   mutate(period = str_c(period, "-01")) %>%
   separate(period, into = c("month", "year", "day"), sep = "-", remove = FALSE) %>% 
   mutate(month_number = as.character(match(month, month.abb)),
          year = str_replace(year, "^", "20")) %>% 
   mutate(date = make_date(year, month_number, day)) %>% 
-  select(date, total_dewormed, diarrhea_cases) %>% 
+  select(date, total_dewormed, diarrhea_cases, acute_malnutrition,
+         stunted_6_23_months, stunted_0_6_months, stunted_24_59_months,
+         underweight_0_6_months, underweight_6_23_months, underweight_24_59_months) %>% 
   arrange(date)
+
 line_data %>% head()
 ```
 
 ```{r}
-ggplot(line_data, aes(x = date)) +
-  geom_line(aes(y = diarrhea_cases, color = "Diarrhea Cases"), linewidth = 1.5 ,color="red") +
-  labs(title = "Diarrhea Cases Over Time",
-       x = "Date",
-       y = "Count") +
-  scale_x_date(date_labels = "%b-%y", date_breaks = "1 month") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-```
+# Function to display the line trend of the health indicators from 2021 to 2023
+plot_variable_over_time <- function(data, y_variable) {
+  ggplot(data, aes(x = date)) +
+    geom_line(aes_string(y = y_variable, color = y_variable), linewidth = 1.5) +
+    labs(title = paste(y_variable, "Summarized for Kenya(All 47 counties) Over Time"),
+         x = "Date",
+         y = "Count") +
+    scale_x_date(date_labels = "%b-%y", date_breaks = "1 month") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+}
+plot_variable_over_time(line_data, "diarrhea_cases")
+plot_variable_over_time(line_data, "total_dewormed")
+plot_variable_over_time(line_data, "acute_malnutrition")
+plot_variable_over_time(line_data, "stunted_6_23_months")
+plot_variable_over_time(line_data, "stunted_0_6_months")
+plot_variable_over_time(line_data, "stunted_24_59_months")
+plot_variable_over_time(line_data, "underweight_0_6_months")
+plot_variable_over_time(line_data, "underweight_6_23_months")
+plot_variable_over_time(line_data, "underweight_24_59_months")
 
-```{r}
-ggplot(line_data, aes(x = date)) +
-  geom_line(aes(y = total_dewormed), linewidth = 1.5, show.legend = FALSE, color="blue") +
-  labs(title = "Total Dewormed Over Time",
-       x = "Date",
-       y = "Count") +
-  scale_x_date(date_labels = "%b-%y", date_breaks = "1 month") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
 # 5. Exploratory Data Analysis(EDA)
 
 ## A.Univariate Analysis
 
+### How are the numerical features distributions represented in the dataset?
+
+```{r}
+plot_histogram <- function(data) {
+  # Filter only the numerical columns
+  numerical_data <- data %>% select_if(is.numeric)
+
+  # Reshape the data for plotting
+  numerical_data_long <- numerical_data %>%
+    pivot_longer(everything(), names_to = "variable", values_to = "value")
+  # plot histogram
+  ggplot(numerical_data_long, aes(x = value)) +
+    geom_histogram(fill = "lightblue", color = "black",bins = 39) +
+    facet_wrap(~ variable, scales = "free", ncol = 3) +
+    labs(title = "Distribution of Numerical Features", x = "Value", y = "Frequency")
+}
+plot_histogram(data)
+```
+
 ## B.Bivariate Analysis
 
-### How are these health indicators correlated with each other, and which variables show significant associations?
+### How are health indicators correlated with each other, and which variables show significant associations?
 
 ```{r}
 # Correlation matrix
@@ -173,6 +241,24 @@ correlation_table <- round(correlation_matrix, 2)
 # Print the table
 kable(correlation_table, format = "html", caption = "Correlation Matrix")
 ```
+
+### What is the relationship between the top 3 highest correlated(0.81,0.71 and 0.70) health indicators?
+```{R}
+create_scatter_plot <- function(data, x_column, y_column) {
+  # scatterplot
+  ggplot(data, aes(x = !!sym(x_column), y = !!sym(y_column))) +
+    geom_point() +
+    labs(title = paste("Relationship between", x_column, "against", y_column),
+         x = x_column,
+         y = y_column)
+}
+create_scatter_plot(data, "Underweight 6-23 months", "stunted 6-23 months")
+create_scatter_plot(data, "Underweight 6-23 months", "diarrhoea cases")
+create_scatter_plot(data, "Underweight 0-<6 months", "stunted 6-23 months")
+```
+### What are the top 5 counties with the most diarrhoea cases?
+
+### Since 2019 which Counties have shown an increase in diarrhoea cases and by what percentage increase?
 
 ## C. Mutivariate Analysis
 
@@ -199,10 +285,12 @@ merged_data <- left_join(shp, data, by = c("Name" = "county"))
 view(merged_data)
 ```
 
+### How does the distribution of Total dewormed, Acute Malnutrition and diarrhoea cases vary across different years within the map?
+
 ```{r}
 
 # Function to create a choropleth map for any of the health indicators
-create_choropleth_map <- function(data, variable_name) {
+create_map <- function(data, variable_name) {
   ggplot() +
     geom_sf(data = data, aes(fill = !!sym(variable_name), geometry = geometry)) +
     scale_fill_distiller(palette = "RdYlBu", direction = 1) + 
@@ -214,13 +302,27 @@ create_choropleth_map <- function(data, variable_name) {
           legend.text = element_text(angle = 45, hjust = 1))  
 }
 
-# create map for "Total Dewormed"
-create_choropleth_map(merged_data, "Total Dewormed")
+# Map Distributions for each Health Indicator"
+create_map(merged_data, "Total Dewormed")
+create_map(merged_data, "Acute Malnutrition")
+create_map(merged_data, "diarrhoea cases")
 ```
 
+### How does the distribution of stunted groups of Children vary across different years within the map?
+
 ```{r}
-create_choropleth_map(merged_data, "Acute Malnutrition")
+create_map(merged_data,  "stunted 0-<6 months")
+create_map(merged_data, "stunted 6-23 months")
+create_map(merged_data, "stunted 24-59 months")
 ```
+
+### How does the distribution of underweight groups of children vary across different years within the map?
+
 ```{r}
-create_choropleth_map(merged_data, "diarrhoea cases")
+create_map(merged_data, "Underweight 0-<6 months")
+create_map(merged_data, "Underweight 6-23 months")
+create_map(merged_data, "Underweight 24-59 Months")
 ```
+## 6. Conclusion
+
+## 7. Recommendations and Future Improvement ideas
