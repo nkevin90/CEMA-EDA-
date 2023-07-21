@@ -22,7 +22,7 @@ What are the spatial and temporal patterns of "Total Dewormed" and "Diarrhea Cas
 The dataset contains the following Features/Columns:
 
 | Column                   | Description                                          |
-|-------------------------|-----------------------------------------------|
+|--------------------------|------------------------------------------------------|
 | period                   | The period (months from January 2021 to June 2023)   |
 | county                   | The name of the county in Kenya                      |
 | Total Dewormed           | Total number of children dewormed                    |
@@ -245,14 +245,23 @@ plot_histogram <- function(data) {
   # Reshape the data for plotting
   numerical_data_long <- numerical_data %>%
     pivot_longer(everything(), names_to = "variable", values_to = "value")
-  # plot histogram
+
+  # Plot Histogram and KDE
   ggplot(numerical_data_long, aes(x = value)) +
-    geom_histogram(fill = "lightblue", color = "black",bins = 39) +
+    geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black", bins = 30) +
+    geom_density(color = "red", linewidth = 1) +
     facet_wrap(~ variable, scales = "free", ncol = 3) +
-    labs(title = "Distribution of Numerical Features", x = "Value", y = "Frequency")
+    labs(title = "Distribution of Numerical Features",
+         x = "Value",
+         y = "Density/Histogram Count") +
+    theme_minimal()
 }
 plot_histogram(data)
 ```
+
+-   Most of the numerical features exhibit a right-skewed distribution, indicating that the majority of data points have lower values, while a few extreme high values pull the distribution towards the right.
+
+-   There are some exceptions. The indicators "underweight 6-23 months," "diarrhea cases," and "underweight 0\<6 months" exhibit a near-normal distribution. In these cases, the data is more balanced, with values spread symmetrically around the mean, indicating a more even distribution of numerical features.
 
 ## B.Bivariate Analysis
 
@@ -296,6 +305,12 @@ create_scatter_plot(data, "Underweight 6-23 months", "stunted 6-23 months")
 create_scatter_plot(data, "Underweight 6-23 months", "Underweight 0-<6 months")
 create_scatter_plot(data, "Underweight 24-59 Months", "stunted 24-59 months")
 ```
+
+-   For each plot, we observe a noticeable trend that indicates an increase or underlying pattern. In the first scatter plot, "Underweight 6-23 months" and "stunted 6-23 months" exhibit a positive relationship. As the values of "Underweight 6-23 months" increase, we also observe an increase in the values of "stunted 6-23 months." This pattern suggests that there might be a connection between underweight and stunted growth for children in the 6-23 months age group.
+
+-   Similarly, in the second scatter plot, "Underweight 6-23 months" and "Underweight 0-\<6 months" also show a positive relationship. As the values of "Underweight 6-23 months" increase, there is a corresponding increase in "Underweight 0-\<6 months." This trend indicates a link between underweight in the two age groups, highlighting a potential health concern among children under 6 months.
+
+-   Lastly, in the third scatter plot, "Underweight 24-59 Months" and "stunted 24-59 months" exhibit a positive correlation. As the values of "Underweight 24-59 Months" increase, there is a simultaneous increase in "stunted 24-59 months." This observation suggests that underweight in children aged 24-59 months might be associated with stunted growth.
 
 ```{r}
 county_data <- data %>%
@@ -341,6 +356,25 @@ summarized_county_data <- county_data %>%
     .groups = "drop"
   )
 view(summarized_county_data)
+```
+
+### What are the top 5 counties with the highest 'Total Dewormed' cases
+
+```{r}
+top_5_dewormed_counties <- data %>% group_by(county) %>%  summarise(
+  total_dewormed = sum(`Total Dewormed`)) %>% arrange(desc(total_dewormed)) %>%
+  slice_max(total_dewormed,n=5)
+# barplot
+ggplot(top_5_dewormed_counties, aes(x = reorder(county, total_dewormed), y = total_dewormed)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  geom_text(aes(label = total_dewormed), hjust = 1, color = "black", size = 3) +  
+  labs(title = "Top 5 Counties with the Highest No of dewormed childern",
+       y = "Total Dewormed Children") +
+  theme_minimal() +
+  coord_flip() +
+  theme(axis.text.x = element_blank(),  
+        axis.title.x = element_blank()) 
+
 ```
 
 ### What are the top 5 counties with the most diarrhoea cases?
@@ -453,7 +487,7 @@ create_map(merged_data, "underweight_24_59_months")
 
 ## 6. Conclusion
 
-## 7. Recommendations and Future Improvement ideas
+## Recommendations and Future Improvement ideas
 
 I. Data Source Expansion:
 
@@ -470,3 +504,7 @@ III. Interactive Visualizations:
 IV. Automated Reports:
 
 -   Develop a mechanism to generate automated reports that summarize key findings and visualizations for different health indicators and counties.
+
+V. Advanced Exploratory Analysis(EDA)
+
+-   Conduct an in-depth analysis on the remaining features in our dataset.
