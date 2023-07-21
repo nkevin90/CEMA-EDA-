@@ -1,5 +1,5 @@
 ---
-title: "CEMA INTERNSHIP"
+title: "CEMA INTERNSHIP TASK"
 author: "Kelvin Njenga"
 date: "2023-07-19"
 output: html_document
@@ -15,14 +15,14 @@ The primary objective of this analysis is to conduct EDA to identify trends, pat
 
 ## Research Question
 
-What is the temporal trend of deworming efforts in reducing the occurrence of diarrhea cases for children below 5 years over time?
+What are the spatial and temporal patterns of "Total Dewormed" and "Diarrhea Cases" across the 47 counties in Kenya, and is there any correlation or clustering between these health indicators for children below 5 years?
 
 # 2. Data Understanding
 
 The dataset contains the following Features/Columns:
 
 | Column                   | Description                                          |
-|--------------------------|----------------------------------------------|
+|-------------------------|-----------------------------------------------|
 | period                   | The period (months from January 2021 to June 2023)   |
 | county                   | The name of the county in Kenya                      |
 | Total Dewormed           | Total number of children dewormed                    |
@@ -53,7 +53,7 @@ library(leaflet) # for interactive mapping visualizations
 library(plotly)
 library(corrplot) # for correlation plots
 library(knitr) # for dynamic reports
-library(RColorBrewer) # for color palletes
+library(RColorBrewer) # for color palettes
 
 ```
 
@@ -81,7 +81,7 @@ calculate_missing_percentage <- function(data) {
   return(missing_percentage)
 }
 missing_percentages <- calculate_missing_percentage(data)
-print(missing_percentages)
+kable(missing_percentages, caption = "Missing Data Percentages")
 ```
 
 ### Dealing With missing values
@@ -93,7 +93,7 @@ data <- data %>%
 
 # checking if the NA's have been replaced with 0
 missing_percentages <- calculate_missing_percentage(data)
-print(missing_percentages)
+kable(missing_percentages, caption = "Missing Data Percentages")
 ```
 
 ### Checking for duplicates
@@ -129,15 +129,29 @@ plot_boxplots <- function(data) {
   numerical_data_long <- numerical_data %>%
     pivot_longer(everything(), names_to = "variable", values_to = "value")
 
-  # Plot boxplots
+  # Calculate percentage of outliers for each variable
+  outlier_percentage <- numerical_data_long %>%
+    group_by(variable) %>%
+    summarize(outlier_percentage = mean(value < quantile(value, 0.25) | value > quantile(value, 0.75)) * 100)
+
+  # Plot boxplots with outlier percentage labels
   ggplot(numerical_data_long, aes(x = variable, y = value)) +
     geom_boxplot() +
+    stat_summary(fun = function(x) mean(x < quantile(x, 0.25) | x > quantile(x, 0.75)) * 100, 
+                 geom = "text", aes(label = paste(round(after_stat(y), 1), "%")), 
+                 vjust = -1, hjust = 0.5, size = 3) +
     facet_wrap(~ variable, scales = "free") +
-    labs(title = "Boxplots of Numerical Columns",
+    labs(title = "Boxplots of Numerical Columns with Outlier Percentage",
          x = "Variables", y = "Values")
 }
 plot_boxplots(data)
 ```
+
+In this analysis, I have chosen to ignore the outliers as it allows me to direct my attention towards the central and more common characteristics of the data. This approach enables me to gain deeper insights into the typical behavior and patterns exhibited by the majority of data points.
+
+Furthermore, outliers can distort visualizations, making it challenging to perceive the overall trends and patterns effectively. Since my primary interest in this analysis is to understand the general trends and characteristics shared by the majority of the data, ignoring outliers allows me to focus on the factors that are more relevant to typical scenarios.
+
+By excluding outliers, I aim to create visualizations and summary statistics that are more representative of the central tendency of the data. This ensures that my analysis is more accurate, reliable, and aligned with the research questions I am seeking to address.
 
 # 4. External dataset validation
 
@@ -177,26 +191,43 @@ line_data %>% head()
 ```
 
 ```{r}
+summarized_data <- line_data %>%
+  group_by(date) %>%
+  summarize(
+    total_dewormed = sum(total_dewormed),
+    diarrhea_cases = sum(diarrhea_cases),
+    acute_malnutrition = sum(acute_malnutrition),
+    stunted_6_23_months = sum(stunted_6_23_months),
+    stunted_0_6_months = sum(stunted_0_6_months),
+    stunted_24_59_months = sum(stunted_24_59_months),
+    underweight_0_6_months = sum(underweight_0_6_months),
+    underweight_6_23_months = sum(underweight_6_23_months),
+    underweight_24_59_months = sum(underweight_24_59_months)
+  )
+view(summarized_data)
+```
+
+```{r}
 # Function to display the line trend of the health indicators from 2021 to 2023
 plot_variable_over_time <- function(data, y_variable) {
-  ggplot(data, aes(x = date)) +
-    geom_line(aes_string(y = y_variable, color = y_variable), linewidth = 1.5) +
-    labs(title = paste(y_variable, "Summarized for Kenya(All 47 counties) Over Time"),
+  ggplot(data, aes(x = date, y = !!sym(y_variable), color = !!sym(y_variable))) +
+    geom_line(linewidth = 1.5) +
+    labs(title = paste(y_variable, "Summarized for Kenya (All 47 counties) Over Time"),
          x = "Date",
          y = "Count") +
     scale_x_date(date_labels = "%b-%y", date_breaks = "1 month") +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 }
-plot_variable_over_time(line_data, "diarrhea_cases")
-plot_variable_over_time(line_data, "total_dewormed")
-plot_variable_over_time(line_data, "acute_malnutrition")
-plot_variable_over_time(line_data, "stunted_6_23_months")
-plot_variable_over_time(line_data, "stunted_0_6_months")
-plot_variable_over_time(line_data, "stunted_24_59_months")
-plot_variable_over_time(line_data, "underweight_0_6_months")
-plot_variable_over_time(line_data, "underweight_6_23_months")
-plot_variable_over_time(line_data, "underweight_24_59_months")
+plot_variable_over_time(summarized_data, "diarrhea_cases")
+plot_variable_over_time(summarized_data, "total_dewormed")
+plot_variable_over_time(summarized_data, "acute_malnutrition")
+plot_variable_over_time(summarized_data, "stunted_6_23_months")
+plot_variable_over_time(summarized_data, "stunted_0_6_months")
+plot_variable_over_time(summarized_data, "stunted_24_59_months")
+plot_variable_over_time(summarized_data, "underweight_0_6_months")
+plot_variable_over_time(summarized_data, "underweight_6_23_months")
+plot_variable_over_time(summarized_data, "underweight_24_59_months")
 
 ```
 
@@ -242,7 +273,16 @@ correlation_table <- round(correlation_matrix, 2)
 kable(correlation_table, format = "html", caption = "Correlation Matrix")
 ```
 
-### What is the relationship between the top 3 highest correlated(0.81,0.71 and 0.70) health indicators?
+The analysis revealed strong positive correlations between certain health indicators in the dataset. Specifically:
+
+-   The health indicators "Underweight 6-23 months" and "Stunted 6-23 months" exhibit the highest correlation of 0.81. This indicates that areas with higher rates of underweight children aged 6 to 23 months also tend to have higher rates of stunted children in the same age group.
+
+-   Following closely, "Underweight 6-23 months" and "Underweight 0-\<6 months" show the second highest correlation of 0.73. This implies that regions with elevated levels of underweight children aged 6 to 23 months are also likely to have higher rates of underweight children aged less than 6 months.
+
+-   Additionally, the health indicators "Underweight 24-59 months" and "Stunted 24-59 months" demonstrate the third highest correlation of 0.72. This suggests that areas experiencing a higher prevalence of underweight children aged 24 to 59 months are also more likely to have increased rates of stunted children in the same age bracket.
+
+### What is the relationship between the top 3 highest correlated(0.81,0.73 and 0.72) health indicators?
+
 ```{R}
 create_scatter_plot <- function(data, x_column, y_column) {
   # scatterplot
@@ -253,12 +293,97 @@ create_scatter_plot <- function(data, x_column, y_column) {
          y = y_column)
 }
 create_scatter_plot(data, "Underweight 6-23 months", "stunted 6-23 months")
-create_scatter_plot(data, "Underweight 6-23 months", "diarrhoea cases")
-create_scatter_plot(data, "Underweight 0-<6 months", "stunted 6-23 months")
+create_scatter_plot(data, "Underweight 6-23 months", "Underweight 0-<6 months")
+create_scatter_plot(data, "Underweight 24-59 Months", "stunted 24-59 months")
 ```
+
+```{r}
+county_data <- data %>%
+  group_by(county,full_date) %>%
+  summarise(
+    total_dewormed = sum(`Total Dewormed`, na.rm = TRUE),
+    diarrhea_cases = sum(`diarrhoea cases`, na.rm = TRUE),
+    acute_malnutrition = sum(`Acute Malnutrition`, na.rm = TRUE),
+    stunted_6_23_months = sum(`stunted 6-23 months`, na.rm = TRUE),
+    stunted_0_6_months = sum(`stunted 0-<6 months`, na.rm = TRUE),
+    stunted_24_59_months = sum(`stunted 24-59 months`, na.rm = TRUE),
+    underweight_0_6_months = sum(`Underweight 0-<6 months`, na.rm = TRUE),
+    underweight_6_23_months = sum(`Underweight 6-23 months`, na.rm = TRUE),
+    underweight_24_59_months = sum(`Underweight 24-59 Months`, na.rm = TRUE),
+    .groups = "drop"
+
+  ) %>%
+  select(county,full_date,total_dewormed, diarrhea_cases, acute_malnutrition,
+         stunted_6_23_months, stunted_0_6_months, stunted_24_59_months,
+         underweight_0_6_months, underweight_6_23_months, underweight_24_59_months) %>% 
+  arrange(county)
+
+county_data %>% head()
+```
+
+```{r}
+# Filter data for years 2021, 2022, and 2023
+county_data$year <- year(county_data$full_date)
+
+# Group the filtered data by 'full_date' and 'county', and then summarize
+summarized_county_data <- county_data %>%
+  group_by(year, county) %>%
+  summarize(
+    total_dewormed = sum(`total_dewormed`),
+    diarrhea_cases = sum(`diarrhea_cases`),
+    acute_malnutrition = sum(`acute_malnutrition`),
+    stunted_6_23_months = sum(`stunted_6_23_months`),
+    stunted_0_6_months = sum(`stunted_0_6_months`),
+    stunted_24_59_months = sum(`stunted_24_59_months`),
+    underweight_0_6_months = sum(`underweight_0_6_months`),
+    underweight_6_23_months = sum(`underweight_6_23_months`),
+    underweight_24_59_months = sum(`underweight_24_59_months`),
+    .groups = "drop"
+  )
+view(summarized_county_data)
+```
+
 ### What are the top 5 counties with the most diarrhoea cases?
 
-### Since 2019 which Counties have shown an increase in diarrhoea cases and by what percentage increase?
+```{r}
+top_5_counties <- data %>% group_by(county) %>%  summarise(
+  diarrhea_cases = sum(`diarrhoea cases`)) %>% arrange(desc(diarrhea_cases)) %>%
+  slice_max(diarrhea_cases,n=5)
+# barplot
+ggplot(top_5_counties, aes(x = reorder(county, diarrhea_cases), y = diarrhea_cases)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  geom_text(aes(label = diarrhea_cases), hjust = 1, color = "black", size = 3) +  
+  labs(title = "Top 5 Counties with the Highest Diarrhea Cases",
+       y = "Diarrhea Cases") +
+  theme_minimal() +
+  coord_flip() +
+  theme(axis.text.x = element_blank(),  
+        axis.title.x = element_blank()) 
+
+```
+
+### How does the number of Diarrhoea Cases vary over time in the top 5 counties?
+
+```{r}
+selected_counties <- c("Nairobi", "Kilifi", "Turkana", "Mandera", "Nakuru")
+selected_data <- data %>%
+  filter(county %in% selected_counties)
+
+# Create a line plot for each county
+ggplot(selected_data, aes(x = full_date, y = `diarrhoea cases`, color = county)) +
+  geom_line() +
+  labs(title = "Diarrhoea Cases Trend Over Time in Top 5 Counties",
+       x = "Date",
+       y = "Diarrhoea Cases",
+       color = "County") +
+  theme_minimal() +
+  scale_color_manual(values = c("Nairobi" = "blue", "Kilifi" = "red", "Turkana" = "green", "Mandera" = "purple", "Nakuru" = "orange")) +
+  geom_text(data = selected_data %>% filter(full_date == max(full_date)),
+            aes(label = county, color = county),
+            hjust = -0.1,
+            vjust = -0.2,
+            size = 4)
+```
 
 ## C. Mutivariate Analysis
 
@@ -280,8 +405,10 @@ shp <- st_read("shapefiles/County.shp")
 head(shp,2)
 ```
 
+### Summarizing our dataset to each county
+
 ```{r}
-merged_data <- left_join(shp, data, by = c("Name" = "county"))
+merged_data <- left_join(shp, summarized_county_data, by = c("Name" = "county"))
 view(merged_data)
 ```
 
@@ -294,7 +421,7 @@ create_map <- function(data, variable_name) {
   ggplot() +
     geom_sf(data = data, aes(fill = !!sym(variable_name), geometry = geometry)) +
     scale_fill_distiller(palette = "RdYlBu", direction = 1) + 
-    facet_wrap(~year(full_date), ncol = 3) +
+    facet_wrap(~year, ncol = 3) +  # Using the 'year' column directly
     labs(title = paste("Distribution of", variable_name, "across Different Years"),
          fill = variable_name) +
     theme(legend.position = "bottom",
@@ -303,26 +430,43 @@ create_map <- function(data, variable_name) {
 }
 
 # Map Distributions for each Health Indicator"
-create_map(merged_data, "Total Dewormed")
-create_map(merged_data, "Acute Malnutrition")
-create_map(merged_data, "diarrhoea cases")
+create_map(merged_data, "total_dewormed")
+create_map(merged_data, "acute_malnutrition")
+create_map(merged_data, "diarrhea_cases")
 ```
 
 ### How does the distribution of stunted groups of Children vary across different years within the map?
 
 ```{r}
-create_map(merged_data,  "stunted 0-<6 months")
-create_map(merged_data, "stunted 6-23 months")
-create_map(merged_data, "stunted 24-59 months")
+create_map(merged_data,  "stunted_0_6_months")
+create_map(merged_data, "stunted_6_23_months")
+create_map(merged_data, "stunted_24_59_months")
 ```
 
 ### How does the distribution of underweight groups of children vary across different years within the map?
 
 ```{r}
-create_map(merged_data, "Underweight 0-<6 months")
-create_map(merged_data, "Underweight 6-23 months")
-create_map(merged_data, "Underweight 24-59 Months")
+create_map(merged_data, "underweight_0_6_months")
+create_map(merged_data, "underweight_6_23_months")
+create_map(merged_data, "underweight_24_59_months")
 ```
+
 ## 6. Conclusion
 
 ## 7. Recommendations and Future Improvement ideas
+
+I. Data Source Expansion:
+
+-   Consider incorporating additional data sources, such as demographic information, economic data, or environmental factors, to gain a more comprehensive understanding of health indicators' determinants.
+
+II. Collaboration:
+
+-   Collaborate with domain experts, health professionals, and other stakeholders to gain valuable insights into the data and the context of health-related issues.
+
+III. Interactive Visualizations:
+
+-   Explore the use of interactive visualizations to allow users to interact with the data and gain more insights dynamically.
+
+IV. Automated Reports:
+
+-   Develop a mechanism to generate automated reports that summarize key findings and visualizations for different health indicators and counties.
