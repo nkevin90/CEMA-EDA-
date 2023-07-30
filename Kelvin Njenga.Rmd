@@ -2,7 +2,10 @@
 title: "CEMA INTERNSHIP TASK"
 author: "Kelvin Njenga"
 date: "2023-07-19"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
 ---
 
 # 1.Business understanding
